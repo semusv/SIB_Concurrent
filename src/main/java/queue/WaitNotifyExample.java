@@ -1,8 +1,7 @@
-package Queue;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.ArrayList;
-import java.util.List;
+package queue;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class WaitNotifyExample {
     private final Queue<Integer> queue = new LinkedList<>();
@@ -103,5 +102,12 @@ public class WaitNotifyExample {
             }
         }
         System.out.println("[Потребитель " + consumerId + "] Завершает работу");
+
+        Deque<String> deque = new ConcurrentLinkedDeque<>();
+        deque.addFirst("A");
+        deque.addLast("B");
+        String first = deque.pollFirst();
+
     }
 }
+
