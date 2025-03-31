@@ -10,7 +10,7 @@ public class ExecutorExample {
         // Запускаем 12 одинаковых задач (Runnable)
         for (int i = 0; i < 12; i++) {
             final int taskNumber = i + 1; // Номер задачи для логов
-            executor.submit(() -> {
+            executor.execute(() -> {
                 System.out.println(
                         "Задача " + taskNumber + " выполняется в " +
                                 Thread.currentThread().getName()

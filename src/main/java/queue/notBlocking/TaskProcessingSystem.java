@@ -1,12 +1,8 @@
-package queue;
+package queue.notBlocking;
 
 import lombok.Data;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Система обработки задач с использованием потокобезопасной очереди.
@@ -119,7 +115,7 @@ public class TaskProcessingSystem {
             } else {
                 // Если задач нет - небольшая пауза, чтобы не нагружать CPU
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     // Восстанавливаем флаг прерывания
                     Thread.currentThread().interrupt();
@@ -177,4 +173,10 @@ public class TaskProcessingSystem {
         system.shutdown();
         System.out.println("System shutdown complete");
     }
+
+
+    void    wrq() throws InterruptedException {
+
+    }
 }
+

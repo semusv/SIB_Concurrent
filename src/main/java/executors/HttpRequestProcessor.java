@@ -104,16 +104,9 @@ public class HttpRequestProcessor {
     }
 
     public void qwer() {
-        ExecutorService executor = Executors.newFixedThreadPool(4); // 4 потока
-
-        for (int i = 0; i < 20; i++) {
-            executor.submit(() -> {
-                System.out.println("Задача выполняется в: " + Thread.currentThread().getName());
-                try { Thread.sleep(1000); // имитация долгой задачи
-                } catch (InterruptedException e) {e.printStackTrace();}
-            });
-        }
-        executor.shutdown(); // важно закрыть пул
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(() -> { System.out.println("Выполняю задачу каждые 2 секунды"); },
+                0, 2, TimeUnit.SECONDS);
     }
 
 }
