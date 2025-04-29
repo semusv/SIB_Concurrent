@@ -1,83 +1,90 @@
 package atomic;
 
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-
+import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Класс пользователя с именем и возрастом
+ * Потокобезопасный класс пользователя с использованием AtomicReference.
+ * Демонстрирует атомарные обновления состояния в многопоточной среде.
  */
-@Getter
-@RequiredArgsConstructor
-class User {
-    @NonNull
-    private String name;
-    @NonNull
-    private int age;
-
-    // Переопределение toString для красивого вывода
-    @Override
-    public String toString() {
-        return "User{name='" + name + "', age=" + age + "}";
-    }
-}
-
-/**
- * Демонстрация работы AtomicReference для потокобезопасного
- * обновления объектов
- */
+@Slf4j
 public class AtomicReferenceExample {
-    public static void main(String[] args) {
-        // Создаем атомарную ссылку на объект User
-        AtomicReference<User> atomicUser = new AtomicReference<>(new User("Alice", 30)  // Начальное значение
-        );
 
-        // Атомарное обновление объекта через лямбда-функцию
-        // updateAndGet принимает функцию, которая создает новый объект на основе текущего
-        atomicUser.updateAndGet(user -> new User(user.getName(), user.getAge() + 1)  // Создаем нового пользователя
-        );
+    /**
+     * Класс пользователя с неизменяемыми свойствами.
+     * Неизменяемость (immutable) важна для корректной работы с AtomicReference.
+     */
+    @Getter
+    static class User {
+        private final String name;
+        private final int age;
 
-        // Выводим обновленный объект
-        // Обратите внимание на вложенность в имени из-за вызова toString()
-        System.out.println(atomicUser.get()); //User{name='Alice', age=31}
-
-        // Задача для потокобезопасного обновления возраста пользователя
-        /**
-         * !!!CAS в многопоточной среде!!!
-         * Как это работает?
-         * Оба потока читают oldValue (например, 0).
-         * Один поток успешно делает CAS (0 → 1), другой — нет.
-         * Второй поток повторяет операцию, теперь oldValue = 1, и CAS (1 → 2) успешен.
-         */
-        Runnable updateTask = () -> {
-            User currentUser;
-            User newUser;
-            do {
-                // Получаем текущее значение
-                currentUser = atomicUser.get();
-                // Создаем нового пользователя с увеличенным возрастом
-                newUser = new User(currentUser.getName(), currentUser.getAge() + 1);
-                // Пытаемся атомарно установить новое значение
-                // compareAndSet вернет true только если текущее значение не изменилось
-                // с момента последнего чтения (currentUser)
-            } while (!atomicUser.compareAndSet(currentUser, newUser));
-        };
-
-        // Запускаем два потока, которые будут конкурентно обновлять возраст
-        new Thread(updateTask).start();
-        new Thread(updateTask).start();
-
-        // Даем потокам время на выполнение
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        public User(@NonNull String name, int age) {
+            this.name = name;
+            this.age = age;
+            log.trace("Создан новый пользователь: {}", this);
         }
 
-        // Выводим финальное значение
-        System.out.println("Final value: " + atomicUser.get());
+        /**
+         * Создает нового пользователя с увеличенным возрастом.
+         * @return новый объект User с age + 1
+         */
+        public User withIncrementedAge() {
+            User newUser = new User(this.name, this.age + 1);
+            log.trace("Инкремент возраста: {} -> {}", this, newUser);
+            return newUser;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("age=%d",  age);
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        // Инициализация атомарной ссылки с начальным пользователем
+        AtomicReference<User> atomicUser = new AtomicReference<>(new User("Alice", 30));
+        log.info("Инициализирован AtomicReference: {}", atomicUser.get());
+
+        // 1. Демонстрация атомарного обновления через updateAndGet
+        atomicUser.updateAndGet(User::withIncrementedAge);
+        log.info("После единичного обновления: {}", atomicUser.get());
+
+        // 2. Демонстрация конкурентного обновления в нескольких потоках
+        Runnable updateTask = () -> {
+            for (int i = 0; i < 2; i++) {
+                User currentUser;
+                User newUser;
+                int attempts = 0;
+
+                do {
+                    attempts++;
+                    currentUser = atomicUser.get();
+                    newUser = currentUser.withIncrementedAge();
+                    log.debug("Попытка {}: пробуем обновить {} -> {}",
+                            attempts, currentUser, newUser);
+                } while (!atomicUser.compareAndSet(currentUser, newUser));
+
+                log.trace("Успешное обновление после {} попыток: {} -> {}",
+                        attempts, currentUser, newUser);
+            }
+            log.info("Поток {} завершил все обновления", Thread.currentThread().getName());
+        };
+
+        Thread thread1 = new Thread(updateTask, "IncrementThread-1");
+        Thread thread2 = new Thread(updateTask, "IncrementThread-2");
+
+        log.info("Запуск потоков для конкурентного обновления...");
+        thread1.start();
+        thread2.start();
+
+        // Ожидаем завершения потоков
+        thread1.join();
+        thread2.join();
+
+        // Проверяем результат - должно быть 30 + 1 (первое обновление) + 100*2 = 231
+        log.info("Финальное значение после 200 инкрементов: {}", atomicUser.get());
     }
 }

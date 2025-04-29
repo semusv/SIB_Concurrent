@@ -1,103 +1,138 @@
 package atomic;
 
 import lombok.Data;
-
+import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.atomic.AtomicStampedReference;
 
-// Пример использования AtomicStampedReference для решения ABA-проблемы
+/**
+ * Демонстрация решения ABA-проблемы с помощью AtomicStampedReference.
+ * Показывает, как избежать проблем при параллельных операциях над счетом.
+ */
+@Slf4j
 public class AtomicStampedReferenceExample {
     public static void main(String[] args) throws InterruptedException {
-        // Создаем банковский счет с начальным балансом 100 и версией 0
+        log.info("Создаем банковский счет для Alice с начальным балансом 100");
         BankAccount account = new BankAccount("Alice", 100);
 
         // Поток 1: пытается снять 50 со счета
         Thread thread1 = new Thread(() -> {
+            log.debug("Поток 1 начал операцию снятия 50");
             boolean success = account.withdraw(50);
-            System.out.println("Thread1: Снял 50 - " + (success ? "Успешно" : "Недостаточно средств"));
-        });
+            log.info("Поток 1: результат снятия 50 - {}",
+                    success ? "Успешно" : "Недостаточно средств");
+        }, "WithdrawThread");
 
-        // Поток 2: имитирует ABA-проблему - вносит и сразу снимает 20
+        // Поток 2: имитирует ABA-проблему
         Thread thread2 = new Thread(() -> {
+            log.debug("Поток 2 начинает операции внесения/снятия");
             account.deposit(20);
-            System.out.println("Thread2: Внес 20, новый баланс = " + account.getBalance());
-            account.withdraw(20);
-            System.out.println("Thread2: Снял 20, новый баланс = " + account.getBalance());
-        });
+            log.info("Поток 2: Внес 20, новый баланс = {}", account.getBalance());
 
-        // Запускаем потоки (намеренно сначала thread2 для демонстрации ABA)
+            account.withdraw(20);
+            log.info("Поток 2: Снял 20, новый баланс = {}", account.getBalance());
+        }, "ABA-SimulationThread");
+
+        log.info("Запускаем потоки (намеренно с задержкой для демонстрации ABA)");
         thread2.start();
-        Thread.sleep(10000);
+        Thread.sleep(100); // Искусственная задержка для демонстрации
         thread1.start();
 
-        // Ожидаем завершения обоих потоков
+        log.debug("Ожидаем завершения потоков...");
         thread2.join();
         thread1.join();
 
-        // Выводим итоговый баланс и версию
-        System.out.println("Итоговый баланс: " + account.getBalance());
-        System.out.println("Версия: " + account.getVersion());
+        log.info("Финальный результат:");
+        log.info("Баланс: {}", account.getBalance());
+        log.info("Версия: {}", account.getVersion());
     }
 }
 
-// Класс банковского счета с использованием AtomicStampedReference
+/**
+ * Класс банковского счета с защитой от ABA-проблемы.
+ * Использует AtomicStampedReference для хранения баланса и версии.
+ */
+@Data // Lombok аннотация для генерации геттеров/toString
+@Slf4j
 class BankAccount {
-    private final String owner; // Владелец счета
-    // Баланс счета с версионным контролем для предотвращения ABA-проблемы
+    private final String owner;
+
+    /**
+     * AtomicStampedReference хранит:
+     * - reference: текущий баланс (Integer)
+     * - stamp: версия/метка времени (int)
+     *
+     * Позволяет обнаруживать изменения между чтением и записью.
+     */
     private final AtomicStampedReference<Integer> balance;
 
     public BankAccount(String owner, int initialBalance) {
         this.owner = owner;
-        // Инициализируем AtomicStampedReference с начальным балансом и версией 0
+        log.debug("Инициализация счета для {}. Начальный баланс: {}", owner, initialBalance);
         this.balance = new AtomicStampedReference<>(initialBalance, 0);
     }
 
-    // Метод для внесения средств на счет
+    /**
+     * Внесение средств на счет.
+     * @param amount сумма для внесения
+     */
     public void deposit(int amount) {
-        int[] stampHolder = new int[1]; // Массив для хранения текущей версии
-        int currentBalance;
-        int newBalance;
+        int[] stampHolder = new int[1]; // Хранит текущую версию
+        int currentBalance, newBalance;
 
-        // Цикл повторяется, пока CAS операция не выполнится успешно
         do {
-            // Получаем текущий баланс и версию
-            currentBalance = balance.get(stampHolder);
-            // Вычисляем новый баланс
+            currentBalance = balance.get(stampHolder); // Получаем баланс+версию
             newBalance = currentBalance + amount;
-            // Пытаемся атомарно обновить баланс, если версия не изменилась
-        } while (!balance.compareAndSet(currentBalance, newBalance,
+            log.trace("Попытка внесения: текущий баланс={}, версия={}, новый баланс={}",
+                    currentBalance, stampHolder[0], newBalance);
+        } while (!balance.compareAndSet(
+                currentBalance, newBalance,
                 stampHolder[0], stampHolder[0] + 1));
+
+        log.debug("Успешное внесение. Новый баланс: {}", newBalance);
     }
 
-    // Метод для снятия средств со счета
+    /**
+     * Снятие средств со счета.
+     * @param amount сумма для снятия
+     * @return true если операция успешна, false если недостаточно средств
+     */
     public boolean withdraw(int amount) {
-        int[] stampHolder = new int[1]; // Массив для хранения текущей версии
-        int currentBalance;
-        int newBalance;
+        int[] stampHolder = new int[1];
+        int currentBalance, newBalance;
 
-        // Цикл повторяется, пока CAS операция не выполнится успешно
         do {
-            // Получаем текущий баланс и версию
             currentBalance = balance.get(stampHolder);
-            // Проверяем достаточно ли средств
             if (currentBalance < amount) {
+                log.warn("Недостаточно средств для снятия. Требуется: {}, доступно: {}",
+                        amount, currentBalance);
                 return false;
             }
-            // Вычисляем новый баланс
             newBalance = currentBalance - amount;
-            // Пытаемся атомарно обновить баланс, если версия не изменилась
-        } while (!balance.compareAndSet(currentBalance, newBalance,
+            log.trace("Попытка снятия: текущий баланс={}, версия={}, новый баланс={}",
+                    currentBalance, stampHolder[0], newBalance);
+        } while (!balance.compareAndSet(
+                currentBalance, newBalance,
                 stampHolder[0], stampHolder[0] + 1));
 
+        log.debug("Успешное снятие. Новый баланс: {}", newBalance);
         return true;
     }
 
-    // Метод для получения текущего баланса (без учета версии)
+    /**
+     * @return текущий баланс (без проверки версии)
+     */
     public int getBalance() {
-        return balance.getReference();
+        int currentBalance = balance.getReference();
+        log.trace("Запрос баланса: {}", currentBalance);
+        return currentBalance;
     }
 
-    // Метод для получения текущей версии баланса
+    /**
+     * @return текущую версию данных
+     */
     public int getVersion() {
-        return balance.getStamp();
+        int version = balance.getStamp();
+        log.trace("Запрос версии: {}", version);
+        return version;
     }
 }

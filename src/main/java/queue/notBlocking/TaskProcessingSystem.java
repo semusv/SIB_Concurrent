@@ -1,6 +1,7 @@
 package queue.notBlocking;
 
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.*;
 
@@ -16,7 +17,12 @@ import java.util.concurrent.*;
  *
  * <p>Пример использования приведен в методе main().
  */
+@Slf4j
 public class TaskProcessingSystem {
+    //Число потоков Consumers
+    public static final int WORKER_COUNT = 4;
+    //Число потоков Producers
+    public static final int PRODUCERS = 3;
     // Потокобезопасная очередь для хранения задач.
     // Используется ConcurrentLinkedQueue как наиболее эффективная для producer-consumer сценариев
     private final ConcurrentLinkedQueue<Task> taskQueue = new ConcurrentLinkedQueue<>();
@@ -39,14 +45,14 @@ public class TaskProcessingSystem {
          */
         @Override
         public void run() {
-            System.out.println("Processing task " + id + " by " +
-                    Thread.currentThread().getName());
+            log.info("Processing task {} by {}", id, Thread.currentThread().getName());
             try {
                 // Имитация обработки задачи (случайная задержка)
-                Thread.sleep((long) (Math.random() * 500));
+                Thread.sleep((long) (Math.random() * 1000));
             } catch (InterruptedException e) {
                 // Правильная обработка прерывания потока
                 Thread.currentThread().interrupt();
+                log.warn("Task {} interrupted", id);
             }
         }
     }
@@ -67,16 +73,13 @@ public class TaskProcessingSystem {
      */
     public void start() {
         int workerCount = ((ThreadPoolExecutor) executor).getMaximumPoolSize();
-
-        for (int i = 0; i < workerCount; i++) {
+        for (int i = 0; i < workerCount; i++)
             // Каждый поток выполняет метод processTasks()
             executor.execute(this::processTasks);
-        }
     }
 
     /**
      * Добавляет новую задачу в очередь на выполнение.
-     *
      * @param task задача для добавления (не null)
      */
     public void addTask(Task task) {
@@ -86,7 +89,7 @@ public class TaskProcessingSystem {
 
         // offer() - потокобезопасный метод добавления в ConcurrentLinkedQueue
         taskQueue.offer(task);
-        System.out.println("Task " + task.getId() + " added. Queue size: " + taskQueue.size());
+        log.info("Task {} added. Queue size: {}", task.getId(), taskQueue.size());
     }
 
     /**
@@ -100,17 +103,14 @@ public class TaskProcessingSystem {
 
             if (task != null) {
                 try {
-                    System.out.println("[" + Thread.currentThread().getName() +
-                            "] Starting task " + task.getId());
-
+                    log.info("[{}] Starting task {}", Thread.currentThread().getName(), task.getId());
                     // Выполняем задачу
                     task.run();
+                    log.info("[{}] Task {} completed", Thread.currentThread().getName(), task.getId());
 
-                    System.out.println("[" + Thread.currentThread().getName() +
-                            "] Task " + task.getId() + " completed");
                 } catch (Exception e) {
                     // Логируем ошибку, но не прерываем поток
-                    System.err.println("Task " + task.getId() + " failed: " + e.getMessage());
+                    log.error("Task {} failed: {}", task.getId(), e.getMessage());
                 }
             } else {
                 // Если задач нет - небольшая пауза, чтобы не нагружать CPU
@@ -119,6 +119,7 @@ public class TaskProcessingSystem {
                 } catch (InterruptedException e) {
                     // Восстанавливаем флаг прерывания
                     Thread.currentThread().interrupt();
+                    log.warn("Worker thread interrupted");
                 }
             }
         }
@@ -137,44 +138,43 @@ public class TaskProcessingSystem {
         if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
             // Принудительное завершение, если задачи не завершились за отведенное время
             executor.shutdownNow();
+            log.warn("Forced shutdown initiated");
         }
+        log.info("System shutdown complete");
     }
 
     /**
      * Демонстрационный метод работы системы.
      */
     public static void main(String[] args) throws InterruptedException {
-        System.out.println("Starting task processing system with 4 workers");
+        log.info("Starting task processing system with 4 workers");
 
         // Создаем систему с 4 рабочими потоками
-        TaskProcessingSystem system = new TaskProcessingSystem(4);
+        TaskProcessingSystem system = new TaskProcessingSystem(WORKER_COUNT);
         system.start();
 
         // Создаем пул производителей задач
-        ExecutorService producers = Executors.newFixedThreadPool(3);
+        ExecutorService producers = Executors.newFixedThreadPool(PRODUCERS);
 
         // Добавляем 10 задач через производителей
         for (int i = 0; i < 10; i++) {
             final int taskId = i;
-            Thread.sleep(100);  // Имитируем неравномерное поступление задач
+            Thread.sleep((long) (Math.random()*500+100));  // Имитируем неравномерное поступление задач
+            log.info("Add task " + taskId);
             producers.execute(() -> {
                 system.addTask(new Task(taskId));
             });
         }
 
         // Завершаем работу производителей
+        log.info("---Starting finish executors...");
         producers.shutdown();
         producers.awaitTermination(2, TimeUnit.SECONDS);
 
-        System.out.println("Waiting for tasks to complete...");
+        log.info("Waiting for tasks to complete...");
         Thread.sleep(10000);  // Даем время на обработку оставшихся задач
 
-        System.out.println("Shutting down the system");
+        log.info("Shutting down the system");
         system.shutdown();
-        System.out.println("System shutdown complete");
     }
-    void    wrq() throws InterruptedException {
-    }
-
 }
-

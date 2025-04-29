@@ -3,21 +3,20 @@ package queue.blocking;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Random;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Продвинутая реализация паттерна Producer-Consumer с использованием BlockingQueue.
  *
  * <p>Особенности:
- * - Динамическая скорость работы производителя и потребителя.
+ * - Динамическая скорость работы производителей и потребителей.
  * - Возможность плавного завершения работы.
  * - Подробное логирование состояния системы.
  * - Конфигурируемые параметры работы.
  */
 @Slf4j
-public class ProducerConsumerExample {
+public class ProducerConsumerExampleExec {
     // Конфигурационные параметры
     private static final int QUEUE_CAPACITY = 5; // Размер очереди
     private static final int PRODUCTION_COUNT = 10; // Количество элементов для производства
@@ -29,9 +28,9 @@ public class ProducerConsumerExample {
         // Очередь с ограниченной емкостью
         BlockingQueue<Integer> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
 
-        // Поток-производитель
-        Thread producer = createProducerThread(queue);
-        producer.start();
+        // Использование пула потоков для производителей
+        ExecutorService producer = Executors.newFixedThreadPool(3);
+        startProducers(producer, queue);
 
         // Поток-потребитель
         Thread consumer = createConsumerThread(queue);
@@ -39,12 +38,12 @@ public class ProducerConsumerExample {
 
         // Обработчик завершения работы
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            isRunning = false;
+            isRunning = false; // Останавливаем работу потоков
             log.info("\nПолучен сигнал завершения работы...");
 
             try {
                 // Даем потокам время на завершение
-                producer.join(3000);
+                producer.awaitTermination(3, TimeUnit.SECONDS);
                 consumer.join(3000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -53,46 +52,43 @@ public class ProducerConsumerExample {
     }
 
     /**
-     * Создает поток-производитель.
+     * Запускает несколько производителей с использованием пула потоков.
      *
-     * @param очередь для обмена данными
-     * @return поток-производитель
+     * @param producer Пул потоков для производителей.
+     * @param queue    Очередь для обмена данными.
      */
-    private static Thread createProducerThread(BlockingQueue<Integer> queue) {
-        return new Thread(() -> {
-            Random random = new Random();
-            int produced = 1; // Счетчик произведенных элементов
+    private static void startProducers(ExecutorService producer, BlockingQueue<Integer> queue) {
+        AtomicInteger produced = new AtomicInteger(0); // Счетчик произведенных элементов
+        Random random = new Random();
 
-            try {
-                while (isRunning && produced <= PRODUCTION_COUNT) {
-                    int item = produced++; // Генерация нового элемента
+        for (int i = 0; i < 3; i++) {
+            producer.execute(() -> {
+                try {
+                    while (isRunning && produced.get() < PRODUCTION_COUNT) {
+                        int item = produced.incrementAndGet(); // Генерация нового элемента
 
-                    // Добавление элемента с таймаутом
-                    boolean added = queue.offer(item, 500, TimeUnit.MILLISECONDS);
-
-                    if (added) {
+                        // Добавление элемента с блокировкой
+                        queue.put(item);
                         log.info("[Producer] Отправлен: {} (Размер очереди: {}/{})", item, queue.size(), QUEUE_CAPACITY);
-                    } else {
-                        log.warn("[Producer] Таймаут при добавлении элемента");
-                    }
 
-                    // Имитация задержки обработки
-                    Thread.sleep(random.nextInt(MAX_PRODUCER_DELAY_MS));
+                        // Имитация задержки обработки
+                        Thread.sleep(random.nextInt(MAX_PRODUCER_DELAY_MS));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.error("[Producer] Прерван во время работы", e);
+                } finally {
+                    log.info("[Producer] Завершил работу. Произведено элементов: {}", produced.get());
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("[Producer] Прерван во время работы", e);
-            } finally {
-                log.info("[Producer] Завершил работу. Произведено элементов: {}", produced);
-            }
-        }, "PRODUCER");
+            });
+        }
     }
 
     /**
      * Создает поток-потребитель.
      *
-     * @param очередь для обмена данными
-     * @return поток-потребитель
+     * @param queue Очередь для обмена данными.
+     * @return Поток-потребитель.
      */
     private static Thread createConsumerThread(BlockingQueue<Integer> queue) {
         return new Thread(() -> {
