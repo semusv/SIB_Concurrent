@@ -1,13 +1,14 @@
 package executors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.experimental.UtilityClass;
 
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.stream.*;
+import java.util.stream.Collectors;
 
 /**
  * FixedThreadPool
- *
- * Система параллельной обработки документов с использованием ThreadPool.
+  * Система параллельной обработки документов с использованием ThreadPool.
  *
  * <p>Особенности реализации:
  * <ul>
@@ -17,9 +18,11 @@ import java.util.stream.*;
  *   <li>Обрабатывает возможные ошибки выполнения задач</li>
  * </ul>
  */
+@Slf4j
+@UtilityClass
 public class DocumentProcessor {
     // Количество потоков соответствует количеству ядер CPU (оптимально для CPU-bound задач)
-    private static final int THREAD_COUNT = 4;
+    private static final int THREAD_COUNT = 3;
 
     /**
      * Точка входа в приложение.
@@ -46,7 +49,11 @@ public class DocumentProcessor {
             // Используем Stream API для удобного преобразования и обработки
             List<Future<String>> processingResults = documents.stream()
                     // Преобразуем каждый документ в Future с результатом обработки
-                    .map(doc -> executor.submit(() -> processDocument(doc)))
+                    .map(doc -> {
+                        return executor.submit(() -> {
+                            return processDocument(doc);
+                        });
+                    })
                     .collect(Collectors.toList());
 
             // 4. Получение и обработка результатов
@@ -54,16 +61,16 @@ public class DocumentProcessor {
                 try {
                     // Таймаут 5 секунд на обработку каждого документа
                     // Предотвращает бесконечное ожидание "зависших" задач
-                    System.out.println(result.get(5, TimeUnit.SECONDS));
+                    log.info(result.get(5, TimeUnit.SECONDS));
                 } catch (TimeoutException e) {
-                    System.err.println("Обработка документа заняла слишком много времени");
+                    log.error("Обработка документа заняла слишком много времени", e);
                 } catch (ExecutionException e) {
                     // Обработка ошибок, возникших при выполнении задачи
-                    System.err.println("Ошибка обработки: " + e.getCause().getMessage());
+                    log.error("Ошибка обработки: {}", e.getCause().getMessage(), e);
                 } catch (InterruptedException e) {
                     // Корректная обработка прерывания потока
                     Thread.currentThread().interrupt();
-                    System.err.println("Обработка прервана");
+                    log.error("Обработка прервана", e);
                 }
             }
         } finally {
@@ -81,9 +88,8 @@ public class DocumentProcessor {
      * @throws Exception в случае ошибок обработки
      */
     private static String processDocument(String documentName) throws Exception {
-        // Логирование начала обработки (в реальной системе - SLF4J)
-        System.out.println("Начата обработка: " + documentName +
-                " в потоке " + Thread.currentThread().getName());
+        // Логирование начала обработки
+        log.info("Начата обработка: {} в потоке {}", documentName, Thread.currentThread().getName());
 
         // Имитация времени обработки (500-2000 мс)
         // В реальной системе здесь может быть:
@@ -117,13 +123,17 @@ public class DocumentProcessor {
 
                 // 4. Дополнительное ожидание для ответа на прерывание
                 if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    System.err.println("Пул потоков не завершился корректно");
+                    log.error("Пул потоков не завершился корректно");
                 }
+            }
+            else{
+                log.info("Пул успешно завершился");
             }
         } catch (InterruptedException e) {
             // 5. Обработка прерывания во время ожидания
             executor.shutdownNow();
             Thread.currentThread().interrupt();
+            log.error("Ожидание завершения пула потоков было прервано", e);
         }
     }
 }

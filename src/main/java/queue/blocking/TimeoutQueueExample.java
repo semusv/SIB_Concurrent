@@ -1,4 +1,7 @@
 package queue.blocking;
+
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 2) Извлечение элементов с ожиданием при пустой очереди
  * 3) Корректное завершение работы через Shutdown Hook
  */
+@Slf4j
 public class TimeoutQueueExample {
     // Константы для настройки поведения
     private static final int QUEUE_CAPACITY = 3;
@@ -37,19 +41,18 @@ public class TimeoutQueueExample {
                     boolean added = queue.offer(item, OFFER_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
                     if (added) {
-                        System.out.println("[Производитель] Успешно добавлен: " + item);
+                        log.info("[Производитель] Успешно добавлен: {}", item);
                     } else {
-                        System.out.println("[Производитель] Таймаут! Не удалось добавить: " + item +
-                                " (очередь полна)");
+                        log.warn("[Производитель] Таймаут! Не удалось добавить: {} (очередь полна)", item);
                     }
 
                     // Имитация времени между добавлением элементов
                     Thread.sleep(PRODUCER_DELAY_MS);
                 }
 
-                System.out.println("[Производитель] Завершил добавление элементов");
+                log.info("[Производитель] Завершил добавление элементов");
             } catch (InterruptedException e) {
-                System.out.println("[Производитель] Прерван во время работы");
+                log.warn("[Производитель] Прерван во время работы");
                 Thread.currentThread().interrupt();
             }
         }, "ProducerThread");
@@ -67,28 +70,28 @@ public class TimeoutQueueExample {
                     if (item == null) {
                         // Проверяем, нужно ли продолжать работу
                         if (!running.get()) {
-                            System.out.println("[Потребитель] Получен сигнал завершения");
+                            log.info("[Потребитель] Получен сигнал завершения");
                             break;
                         }
-                        System.out.println("[Потребитель] Таймаут! Очередь пуста, продолжаю ожидание...");
+                        log.warn("[Потребитель] Таймаут! Очередь пуста, продолжаю ожидание...");
                         continue;
                     }
 
-                    System.out.println("[Потребитель] Обработано: " + item);
+                    log.info("[Потребитель] Обработано: {}", item);
 
                     // Имитация времени обработки элемента
                     Thread.sleep(CONSUMER_DELAY_MS);
                 }
-                System.out.println("[Потребитель] Корректно завершил работу");
+                log.info("[Потребитель] Корректно завершил работу");
             } catch (InterruptedException e) {
-                System.out.println("[Потребитель] Прерван во время работы");
+                log.warn("[Потребитель] Прерван во время работы");
                 Thread.currentThread().interrupt();
             }
         }, "ConsumerThread");
 
         // Shutdown Hook для корректного завершения
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\nПолучен сигнал завершения работы...");
+            log.info("\nПолучен сигнал завершения работы...");
             running.set(false);
 
             // Прерываем потоки для быстрого завершения
@@ -103,8 +106,8 @@ public class TimeoutQueueExample {
                 Thread.currentThread().interrupt();
             }
 
-            System.out.println("Очередь при завершении: " + queue);
-            System.out.println("Программа завершена");
+            log.info("Очередь при завершении: {}", queue);
+            log.info("Программа завершена");
         }));
 
         // Запускаем потоки
@@ -117,9 +120,9 @@ public class TimeoutQueueExample {
             consumerThread.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.out.println("Главный поток был прерван");
+            log.warn("Главный поток был прерван");
         }
 
-        System.out.println("Основной поток завершен");
+        log.info("Основной поток завершен");
     }
 }

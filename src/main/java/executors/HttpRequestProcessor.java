@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Обработчик HTTP-запросов с использованием Java HttpClient и CompletableFuture.
  * Демонстрирует:
@@ -14,10 +16,11 @@ import java.util.stream.Collectors;
  * - Обработку JSON-ответов
  * - Таймауты и обработку ошибок
  */
+@Slf4j
 public class HttpRequestProcessor {
     // Тестовые API-сервисы
     private static final List<String> API_ENDPOINTS = List.of(
-            "https://jsonplaceholder.typicode.com/posts/1",      // Тестовый JSON-ресурс
+            "https://api.genderize.io/?name=vadim",            // Тестовый JSON-ресурс
             "https://httpbin.org/get",                            // Сервис для тестирования HTTP
             "https://api.agify.io/?name=michael",                 // Предсказание возраста по имени
             "https://catfact.ninja/fact"                          // Случайные факты о котах
@@ -29,8 +32,8 @@ public class HttpRequestProcessor {
 
     public static void main(String[] args) {
         // 1. Пул потоков для I/O-bound операций
-        ExecutorService executor = Executors.newCachedThreadPool();
-
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        log.info("Начинаем");
         // 2. Настройка HTTP-клиента
         HttpClient client = HttpClient.newBuilder()
                 .executor(executor)
@@ -39,7 +42,7 @@ public class HttpRequestProcessor {
                 .build();
 
         // 3. Создание асинхронных запросов
-        List<CompletableFuture<String>> futures = API_ENDPOINTS.stream()
+        List<CompletableFuture<String>> futureRequests = API_ENDPOINTS.stream()
                 .map(url -> {
                     HttpRequest request = HttpRequest.newBuilder()
                             .uri(URI.create(url))
@@ -50,10 +53,7 @@ public class HttpRequestProcessor {
                     return client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                             .thenApplyAsync(response -> {
                                 // Логирование статуса ответа
-                                System.out.printf("[%s] %s - Status: %d%n",
-                                        Thread.currentThread().getName(),
-                                        url,
-                                        response.statusCode());
+                                log.info("[{}] {} - Status: {}", Thread.currentThread().getName(), url, response.statusCode());
 
                                 // Возвращаем тело ответа (или сообщение об ошибке)
                                 return response.statusCode() == 200
@@ -62,21 +62,22 @@ public class HttpRequestProcessor {
                             }, executor)
                             .exceptionally(ex -> {
                                 // Обработка ошибок выполнения запроса
-                                System.err.println("Request failed: " + url + " - " + ex.getMessage());
+                                log.error("Request failed: {} - {}", url, ex.getMessage());
                                 return "Failed: " + ex.getMessage();
                             });
                 })
                 .collect(Collectors.toList());
 
         // 4. Ожидание всех результатов
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+        log.info("Ожидаем завершение всего");
+        CompletableFuture.allOf(futureRequests.toArray(new CompletableFuture[0]))
                 .thenRun(() -> {
-                    System.out.println("\n=== Результаты запросов ===");
-                    futures.forEach(f -> {
+                    log.info("\n=== Результаты запросов ===");
+                    futureRequests.forEach(f -> {
                         try {
-                            System.out.println(f.get());
+                            log.info(f.get());
                         } catch (Exception e) {
-                            System.err.println("Error getting result: " + e.getMessage());
+                            log.error("Error getting result: {}", e.getMessage());
                         }
                     });
                 })
@@ -85,7 +86,6 @@ public class HttpRequestProcessor {
         // 5. Graceful shutdown
         executor.shutdown();
     }
-
 
     /**
      * Обработка JSON-ответа (упрощенная реализация)
@@ -103,10 +103,5 @@ public class HttpRequestProcessor {
         }
     }
 
-    public void qwer() {
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        scheduler.scheduleAtFixedRate(() -> { System.out.println("Выполняю задачу каждые 2 секунды"); },
-                0, 2, TimeUnit.SECONDS);
-    }
 
 }

@@ -1,11 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <!-- Формат вывода логов с цветами -->
+    <property name="LOG_PATTERN_COLOR" value="%boldGreen(%d{HH:mm:ss.SSS}) %blue([%thread]) %highlight(%-5level) %cyan(%logger{55}) - %msg%n"/>
+
+    <!-- Формат вывода логов без цветов (для файлов) -->
+    <property name="LOG_PATTERN_PLAIN" value="%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+
+    <!-- Вывод в консоль с цветами -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %logger{36} - %msg%n</pattern>
+            <pattern>${LOG_PATTERN_COLOR}</pattern>
+            <charset>UTF-8</charset>
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE" />
+    <!-- Уровень логирования -->
+    <root level="TRACE">
+        <appender-ref ref="CONSOLE"/>
     </root>
+
+    <!-- Специальные настройки для нашего буфера -->
+    <logger name="locks.*" level="TRACE" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
 </configuration>
