@@ -24,6 +24,7 @@ public class SingleExecutors {
     public static void main(String[] args) throws Exception {
         // Создаем ExecutorService с одним потоком
         // Все задачи будут выполняться последовательно в одном потоке
+//        ExecutorService executor = Executors.newSingleThreadExecutor();
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         // Запускаем 12 задач типа Runnable
@@ -31,9 +32,17 @@ public class SingleExecutors {
         for (int i = 0; i < 12; i++) {
             final int taskNumber = i + 1; // Номер задачи для удобства логирования
             executor.execute(() -> {
-                log.info("Задача {} выполняется в потоке {}", taskNumber, Thread.currentThread().getName());
+                try {
+                    Thread.sleep((long) (Math.random()*100));
+                    log.info("Задача {} выполняется в потоке {}", taskNumber, Thread.currentThread().getName());
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
             });
         }
+        Thread.sleep(200);
+
 
         // Создаем Callable-задачу, которая возвращает результат через 3 секунды
         // Callable позволяет получить результат выполнения задачи после её завершения

@@ -75,7 +75,7 @@ public class TaskProcessingSystem {
         int workerCount = ((ThreadPoolExecutor) executor).getMaximumPoolSize();
         for (int i = 0; i < workerCount; i++)
             // Каждый поток выполняет метод processTasks()
-            executor.execute(this::processTasks);
+            executor.execute(() -> processTasks());
     }
 
     /**
@@ -115,6 +115,7 @@ public class TaskProcessingSystem {
             } else {
                 // Если задач нет - небольшая пауза, чтобы не нагружать CPU
                 try {
+                    log.info("Waiting....");
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
                     // Восстанавливаем флаг прерывания

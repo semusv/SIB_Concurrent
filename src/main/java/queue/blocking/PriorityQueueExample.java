@@ -22,6 +22,10 @@ public class PriorityQueueExample {
         // Пример добавления задач в очередь.
         taskQueue.add(new Task(3, "Низкий приоритет"));
         taskQueue.add(new Task(1, "Высокий приоритет"));
+        taskQueue.add(new Task(5, "Высокий приоритет"));
+        taskQueue.add(new Task(2, "Высокий приоритет"));
+        taskQueue.add(new Task(10, "Высокий приоритет"));
+        taskQueue.add(new Task(1, "Высокий приоритет"));
 
         // Выполняем обработку задач.
         while (!taskQueue.isEmpty()) {

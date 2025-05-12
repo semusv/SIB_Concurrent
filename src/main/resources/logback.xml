@@ -19,8 +19,5 @@
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <!-- Специальные настройки для нашего буфера -->
-    <logger name="locks.*" level="TRACE" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-    </logger>
+
 </configuration>
