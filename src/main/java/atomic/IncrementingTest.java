@@ -46,7 +46,7 @@ public class IncrementingTest {
             }
         }
 
-        // Проверяем результат (ожидаем 10_000, но из-за race condition может быть меньше)
+        // Проверяем результат (ожидаем 1000, но из-за race condition может быть меньше)
         assertEquals(INCREMENTS * THREADS_NUM, globalVariable);
     }
 

@@ -32,7 +32,7 @@ public class HttpRequestProcessor {
 
     public static void main(String[] args) {
         // 1. Пул потоков для I/O-bound операций
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = Executors.newCachedThreadPool();
         log.info("Начинаем");
         // 2. Настройка HTTP-клиента
         HttpClient client = HttpClient.newBuilder()

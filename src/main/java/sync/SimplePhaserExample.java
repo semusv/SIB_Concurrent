@@ -18,12 +18,14 @@ public class SimplePhaserExample {
             phaser.register(); // Регистрируем перед запуском
             new Thread(new Worker(phaser, i), "Worker-" + i).start();
         }
+        Thread.sleep(10);
 
         // 3. Управление фазами
         for (int phase = 0; phase < phasesCount; phase++) {
             log.info("MAIN: Начало фазы {}", phase);
             phaser.arriveAndAwaitAdvance(); // Ждем завершения фазы
             log.info("MAIN: Фаза {} завершена", phase);
+            Thread.sleep(10);
         }
 
         // 4. Корректное завершение
@@ -61,6 +63,7 @@ public class SimplePhaserExample {
                     log.info("{}: Перешел в фазу {}",
                             Thread.currentThread().getName(),
                             newPhase);
+                    Thread.sleep(10);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
